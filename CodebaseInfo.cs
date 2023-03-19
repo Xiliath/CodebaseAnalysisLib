@@ -26,7 +26,6 @@ namespace CodebaseAnalysisLib
             foreach (var className in ClassNames)
             {
                 sb.AppendLine($"Class: {className}");
-                sb.AppendLine("Methods:");
 
                 foreach (var methodName in ClassMethods[className])
                 {
@@ -35,7 +34,6 @@ namespace CodebaseAnalysisLib
 
                 if (FullCodeOfClass.ContainsKey(className))
                 {
-                    sb.AppendLine($"Full code of class '{className}':");
                     sb.AppendLine(FullCodeOfClass[className]);
                 }
 
@@ -43,7 +41,6 @@ namespace CodebaseAnalysisLib
                 {
                     if (FullCodeOfMethods.ContainsKey(methodName))
                     {
-                        sb.AppendLine($"Full code of method '{methodName}':");
                         sb.AppendLine(FullCodeOfMethods[methodName]);
                     }
                 }
