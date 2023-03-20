@@ -2,6 +2,7 @@
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
+using System.Reflection;
 using System.Text;
 using System.Text.RegularExpressions;
 using System.Threading.Tasks;
@@ -14,38 +15,57 @@ namespace CodebaseAnalysisLib
 {
     public class CodebaseInfo
     {
-        public List<string> ClassNames { get; set; } = new List<string>();
+        public List<string> ProjectNames { get; set; } = new List<string>();
+        public Dictionary<string, List<string>> ClassNames { get; set; } = new Dictionary<string, List<string>>();
         public Dictionary<string, List<string>> ClassMethods { get; set; } = new Dictionary<string, List<string>>();
         public Dictionary<string, string> FullCodeOfClass { get; set; } = new Dictionary<string, string>();
         public Dictionary<string, string> FullCodeOfMethods { get; set; } = new Dictionary<string, string>();
+        public Dictionary<string, List<string>> ClassRelationships { get; set; } = new Dictionary<string, List<string>>();
+
 
         public override string ToString()
         {
             StringBuilder sb = new StringBuilder();
-
-            foreach (var className in ClassNames)
+            foreach (var projectName in ProjectNames.Distinct())
             {
-                sb.AppendLine($"Class: {className}");
+                sb.AppendLine($"Project: {projectName}");
 
-                foreach (var methodName in ClassMethods[className])
+                foreach (var className in ClassNames[projectName])
                 {
-                    sb.AppendLine($"- {methodName}");
-                }
-
-                if (FullCodeOfClass.ContainsKey(className))
-                {
-                    sb.AppendLine(FullCodeOfClass[className]);
-                }
-
-                foreach (var methodName in ClassMethods[className])
-                {
-                    if (FullCodeOfMethods.ContainsKey(methodName))
+                    if (FullCodeOfClass.ContainsKey(className))
                     {
-                        sb.AppendLine(FullCodeOfMethods[methodName]);
+                        sb.AppendLine(FullCodeOfClass[className]);
+                        continue;
                     }
-                }
 
-                sb.AppendLine();
+                    sb.AppendLine($"  Class: {className}");
+
+                    if (ClassRelationships.ContainsKey(className) && ClassRelationships[className].Count > 0)
+                    {
+                        sb.Append("    Inherits/Implements: ");
+                        sb.AppendLine(string.Join(", ", ClassRelationships[className]));
+                    }
+                    else { sb.AppendLine(); }
+
+                    
+                    if (ClassMethods[className].Any())
+                    {
+                        sb.AppendLine($"    Methods: ");
+                        foreach (var methodName in ClassMethods[className])
+                        {
+                            if (FullCodeOfMethods.ContainsKey(methodName))
+                            {
+                                sb.AppendLine(FullCodeOfMethods[methodName]);
+                                continue;
+                            }
+                            sb.AppendLine($"    - {methodName}");
+                        }
+                    }
+                    sb.AppendLine();
+
+
+
+                }
             }
 
             return sb.ToString();
@@ -76,8 +96,29 @@ namespace CodebaseAnalysisLib
                     var classDeclarations = root.DescendantNodes().OfType<ClassDeclarationSyntax>();
                     foreach (var classDeclaration in classDeclarations)
                     {
+                        codebaseInfo.ProjectNames.Add(project.AssemblyName);
+
                         var className = classDeclaration.Identifier.ValueText;
-                        codebaseInfo.ClassNames.Add(className);
+                        if (!codebaseInfo.ClassNames.ContainsKey(project.AssemblyName))
+                        {
+                            codebaseInfo.ClassNames.Add(project.AssemblyName, new List<string>());
+                        }
+                        codebaseInfo.ClassNames[project.AssemblyName].Add(className);
+                        // Find base types and implemented interfaces
+                        var baseTypesAndInterfaces = new List<string>();
+                        foreach (var baseType in classDeclaration.BaseList?.Types ?? Enumerable.Empty<BaseTypeSyntax>())
+                        {
+                            var typeSymbol = semanticModel.GetTypeInfo(baseType.Type).Type;
+                            if (typeSymbol != null)
+                            {
+                                baseTypesAndInterfaces.Add(typeSymbol.Name);
+                            }
+                        }
+                        if (baseTypesAndInterfaces.Count > 0)
+                        {
+                            codebaseInfo.ClassRelationships[className] = baseTypesAndInterfaces;
+                        }
+
                         if (userInput.Contains(className))
                         {
                             if (userInput.Contains(className))
