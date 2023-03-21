@@ -1,10 +1,7 @@
-﻿using System;
+﻿using Microsoft.CodeAnalysis;
+using System;
 using System.Collections.Generic;
-using System.IO;
-using System.Linq;
 using System.Text;
-using System.Threading.Tasks;
-using Microsoft.CodeAnalysis;
 
 namespace CodebaseAnalysisLib
 {
@@ -25,19 +22,22 @@ namespace CodebaseAnalysisLib
             FullCodeOfMethods = new Dictionary<string, string>();
         }
 
-        public List<string> ProjectNames { get; set; } = new List<string>();
-        public Dictionary<string, List<Diagnostic>> DiagnosticsByProject { get; set; } = new Dictionary<string, List<Diagnostic>>();
-        public Dictionary<string, List<string>> ClassNames { get; set; } = new Dictionary<string, List<string>>();
-        public Dictionary<string, List<string>> ClassMethods { get; set; } = new Dictionary<string, List<string>>();
-        public Dictionary<string, List<string>> ClassProperties { get; set; } = new Dictionary<string, List<string>>();
-        public Dictionary<string, List<string>> ClassFields { get; set; } = new Dictionary<string, List<string>>();
-        public Dictionary<string, List<string>> ClassEvents { get; set; } = new Dictionary<string, List<string>>();
-        public Dictionary<string, List<string>> ClassAttributes { get; set; } = new Dictionary<string, List<string>>();
-        public Dictionary<string, List<string>> ClassRelationships { get; set; } = new Dictionary<string, List<string>>();
-        public Dictionary<string, string> FullCodeOfClass { get; set; } = new Dictionary<string, string>();
-        public Dictionary<string, string> FullCodeOfMethods { get; set; } = new Dictionary<string, string>();
+        public List<string> ProjectNames { get; set; }
+        public Dictionary<string, List<Diagnostic>> DiagnosticsByProject { get; set; }
+        public Dictionary<string, List<string>> ClassNames { get; set; }
+        public Dictionary<string, List<string>> ClassMethods { get; set; }
+        public Dictionary<string, List<string>> ClassProperties { get; set; }
+        public Dictionary<string, List<string>> ClassFields { get; set; }
+        public Dictionary<string, List<string>> ClassEvents { get; set; }
+        public Dictionary<string, List<string>> ClassAttributes { get; set; }
+        public Dictionary<string, List<string>> ClassRelationships { get; set; }
+        public Dictionary<string, string> FullCodeOfClass { get; set; }
+        public Dictionary<string, string> FullCodeOfMethods { get; set; }
+        // Add ClassDependencies and MethodDependencies properties
+        public Dictionary<string, List<string>> ClassDependencies { get; set; } = new Dictionary<string, List<string>>();
+        public Dictionary<string, List<string>> MethodDependencies { get; set; } = new Dictionary<string, List<string>>();
 
-
+        // Continue with the ToString() method
         public override string ToString()
         {
             StringBuilder sb = new StringBuilder();
@@ -106,7 +106,6 @@ namespace CodebaseAnalysisLib
                         }
                     }
 
-
                     if (ClassMethods[className].Any())
                     {
                         sb.AppendLine($"    Methods: ");
@@ -120,6 +119,38 @@ namespace CodebaseAnalysisLib
                             sb.AppendLine($"    - {methodName}");
                         }
                     }
+                    if (ClassDependencies.ContainsKey(className) && ClassDependencies[className].Any())
+                    {
+                        sb.AppendLine("    Class Dependencies:");
+                        foreach (var dependency in ClassDependencies[className])
+                        {
+                            sb.AppendLine($"      - {dependency}");
+                        }
+                    }
+
+                    if (ClassMethods[className].Any())
+                    {
+                        sb.AppendLine($"    Methods: ");
+                        foreach (var methodName in ClassMethods[className])
+                        {
+                            if (FullCodeOfMethods.ContainsKey(methodName))
+                            {
+                                sb.AppendLine(FullCodeOfMethods[methodName]);
+                                continue;
+                            }
+
+                            sb.AppendLine($"    - {methodName}");
+
+                            if (MethodDependencies.ContainsKey(methodName) && MethodDependencies[methodName].Any())
+                            {
+                                sb.AppendLine("      Method Dependencies:");
+                                foreach (var dependency in MethodDependencies[methodName])
+                                {
+                                    sb.AppendLine($"        - {dependency}");
+                                }
+                            }
+                        }
+                    }
                     sb.AppendLine();
                 }
             }
@@ -127,4 +158,3 @@ namespace CodebaseAnalysisLib
         }
     }
 }
-

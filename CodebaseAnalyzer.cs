@@ -12,6 +12,30 @@ namespace CodebaseAnalysisLib
 {
     public class CodebaseAnalyzer
     {
+        public static string GetSolutionPath()
+        {
+            string assemblyLocation = Assembly.GetExecutingAssembly().Location;
+            string directory = Path.GetDirectoryName(assemblyLocation);
+            return FindSolutionPath(directory);
+        }
+
+        private static string FindSolutionPath(string directory)
+        {
+            string[] files = Directory.GetFiles(directory, "*.sln");
+            if (files.Length > 0)
+            {
+                return files[0];
+            }
+
+            string parentDirectory = Directory.GetParent(directory)?.FullName;
+            if (parentDirectory == null)
+            {
+                return null;
+            }
+
+            return FindSolutionPath(parentDirectory);
+        }
+
         public static async Task<CodebaseInfo> GetCodebaseInfo(string solutionPath, string userInput)
         {
             userInput ??= string.Empty;
@@ -93,8 +117,102 @@ namespace CodebaseAnalysisLib
             }).ToArray();
             await Task.WhenAll(tasks);
 
+            // Analyzing class and method dependencies
+            codebaseInfo.ClassDependencies = await AnalyzeClassDependencies(solution);
+            codebaseInfo.MethodDependencies = await AnalyzeMethodDependencies(solution);
+
             return codebaseInfo;
         }
+
+        private static async Task<Dictionary<string, List<string>>> AnalyzeClassDependencies(Solution solution)
+        {
+            var classDependencies = new Dictionary<string, List<string>>();
+
+            foreach (var project in solution.Projects)
+            {
+                var updatedProject = project.WithAllSourceFiles();
+                var compilation = await updatedProject.GetCompilationAsync();
+
+                foreach (var syntaxTree in compilation.SyntaxTrees)
+                {
+                    var semanticModel = compilation.GetSemanticModel(syntaxTree);
+                    var root = await syntaxTree.GetRootAsync();
+
+                    var classDeclarations = root.DescendantNodes().OfType<ClassDeclarationSyntax>();
+
+                    foreach (var classDeclaration in classDeclarations)
+                    {
+                        var classSymbol = semanticModel.GetDeclaredSymbol(classDeclaration);
+                        var classFullName = $"{classSymbol.ContainingNamespace}.{classSymbol.Name}";
+                        if (!classDependencies.ContainsKey(classFullName))
+                        {
+                            classDependencies[classFullName] = new List<string>();
+                        }
+
+                        var identifierNames = classDeclaration.DescendantNodes().OfType<IdentifierNameSyntax>();
+                        foreach (var identifierName in identifierNames)
+                        {
+                            var symbol = semanticModel.GetSymbolInfo(identifierName).Symbol;
+                            if (symbol != null && symbol.ContainingType != null && symbol.ContainingType.TypeKind == TypeKind.Class)
+                            {
+                                var dependencyFullName = $"{symbol.ContainingType.ContainingNamespace}.{symbol.ContainingType.Name}";
+                                if (!classDependencies[classFullName].Contains(dependencyFullName) && classFullName != dependencyFullName)
+                                {
+                                    classDependencies[classFullName].Add(dependencyFullName);
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+
+            return classDependencies;
+        }
+
+        private static async Task<Dictionary<string, List<string>>> AnalyzeMethodDependencies(Solution solution)
+        {
+            var methodDependencies = new Dictionary<string, List<string>>();
+
+            foreach (var project in solution.Projects)
+            {
+                var updatedProject = project.WithAllSourceFiles();
+                var compilation = await updatedProject.GetCompilationAsync();
+
+                foreach (var syntaxTree in compilation.SyntaxTrees)
+                {
+                    var semanticModel = compilation.GetSemanticModel(syntaxTree);
+                    var root = await syntaxTree.GetRootAsync();
+
+                    var methodDeclarations = root.DescendantNodes().OfType<MethodDeclarationSyntax>();
+
+                    foreach (var methodDeclaration in methodDeclarations)
+                    {
+                        var methodName = methodDeclaration.Identifier.ValueText;
+                        if (!methodDependencies.ContainsKey(methodName))
+                        {
+                            methodDependencies[methodName] = new List<string>();
+                        }
+
+                        var invocationExpressions = methodDeclaration.DescendantNodes().OfType<InvocationExpressionSyntax>();
+                        foreach (var invocationExpression in invocationExpressions)
+                        {
+                            var symbol = semanticModel.GetSymbolInfo(invocationExpression).Symbol;
+                            if (symbol != null && symbol.Kind == SymbolKind.Method)
+                            {
+                                var dependencyName = symbol.Name;
+                                if (!methodDependencies[methodName].Contains(dependencyName) && methodName != dependencyName)
+                                {
+                                    methodDependencies[methodName].Add(dependencyName);
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+
+            return methodDependencies;
+        }
+
 
         private static void ExtractClassMembers(ClassDeclarationSyntax classDeclaration, SemanticModel semanticModel, CodebaseInfo codebaseInfo, string className)
         {
