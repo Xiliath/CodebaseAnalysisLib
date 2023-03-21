@@ -1,5 +1,7 @@
 ﻿using System;
 using System.Collections.Generic;
+using System.Diagnostics;
+using System.IO;
 using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
@@ -63,18 +65,27 @@ namespace CodebaseAnalysisLib
                             throw new ArgumentException("New code is null, empty, or consists only of whitespace.");
                         }
 
-                        var linesToReplace = root.DescendantTokens().Where(t => t.GetLocation().GetLineSpan().StartLinePosition.Line >= change.StartLine - 1 && t.GetLocation().GetLineSpan().EndLinePosition.Line <= change.EndLine - 1);
-
-                        if (!linesToReplace.Any())
+                        if (string.IsNullOrWhiteSpace(change.NewCode))
                         {
-                            throw new InvalidOperationException("No lines to replace found.");
+                            throw new ArgumentException("New code is null, empty, or consists only of whitespace.");
                         }
 
-                        foreach (var token in linesToReplace)
-                        {
-                            var newTriviaList = SyntaxFactory.ParseLeadingTrivia(change.NewCode);
-                            editor.ReplaceNode(token.Parent, token.Parent.WithLeadingTrivia(newTriviaList));
+                        var startLine = change.StartLine - 1;
+                        var endLine = change.EndLine - 1;
+                        var textLines = root.GetText().Lines;
+                        var startSpan = textLines[startLine].Start;
+                        var endSpan = textLines[endLine].End;
+                        var textSpan = TextSpan.FromBounds(startSpan, endSpan);
+
+                        var sourceText = await document.GetTextAsync();
+                        var replacedText = sourceText.Replace(textSpan, change.NewCode);
+                        var updatedDocument = document.WithText(replacedText);
+                        var updatedRoot = await updatedDocument.GetSyntaxRootAsync();
+                        using(var streamWriter = new StreamWriter(filePath, false))
+{
+                            updatedRoot.WriteTo(streamWriter);
                         }
+
                     }
                     else if (change.ChangeType == "method")
                     {
@@ -125,12 +136,16 @@ namespace CodebaseAnalysisLib
                     }
 
                     SyntaxNode newRoot = await editor.GetChangedDocument().GetSyntaxRootAsync();
-                    File.WriteAllText(filePath, newRoot.ToFullString());
+                    using (var streamWriter = new StreamWriter(filePath, false))
+                    {
+                        newRoot.WriteTo(streamWriter);
+                    }
+
                 }
                 catch (Exception ex)
                 {
-                    Console.WriteLine($"Error applying changes to '{change.FileName}': {ex.Message}");
-                    continue;
+                    Debug.WriteLine($"Error applying changes to '{change.FileName}': {ex.Message}");
+                    throw;
                 }
 
                 
