@@ -81,9 +81,21 @@ namespace CodebaseAnalysisLib
                         var replacedText = sourceText.Replace(textSpan, change.NewCode);
                         var updatedDocument = document.WithText(replacedText);
                         var updatedRoot = await updatedDocument.GetSyntaxRootAsync();
-                        using(var streamWriter = new StreamWriter(filePath, false))
-{
-                            updatedRoot.WriteTo(streamWriter);
+                        try
+                        {
+                            Debug.WriteLine($"File path: {filePath}");
+
+                            using (var streamWriter = new StreamWriter(filePath, false))
+                            {
+                                updatedRoot.WriteTo(streamWriter);
+                                streamWriter.Flush();
+                                streamWriter.Close();
+                            }
+
+                        }
+                        catch (Exception ex)
+                        {
+                            Debug.WriteLine($"Error: {ex.Message}");
                         }
 
                     }
@@ -147,15 +159,7 @@ namespace CodebaseAnalysisLib
                     Debug.WriteLine($"Error applying changes to '{change.FileName}': {ex.Message}");
                     throw;
                 }
-
-                
-
             }
         }
-
     }
-
-
-
-
 }
