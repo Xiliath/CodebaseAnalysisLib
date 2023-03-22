@@ -147,11 +147,11 @@ namespace CodebaseAnalysisLib
                         throw new NotSupportedException($"Change type '{change.ChangeType}' is not supported.");
                     }
 
-                    SyntaxNode newRoot = await editor.GetChangedDocument().GetSyntaxRootAsync();
-                    using (var streamWriter = new StreamWriter(filePath, false))
-                    {
-                        newRoot.WriteTo(streamWriter);
-                    }
+                    //SyntaxNode newRoot = await editor.GetChangedDocument().GetSyntaxRootAsync();
+                    //using (var streamWriter = new StreamWriter(filePath, false))
+                    //{
+                    //    newRoot.WriteTo(streamWriter);
+                    //}
 
                 }
                 catch (Exception ex)
